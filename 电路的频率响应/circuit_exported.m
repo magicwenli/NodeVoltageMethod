@@ -57,24 +57,26 @@ classdef circuit_exported < matlab.apps.AppBase
         EditField_10Label   matlab.ui.control.Label
         EditField_10        matlab.ui.control.NumericEditField
         Button_5            matlab.ui.control.Button
+        radsLabel           matlab.ui.control.Label
+        Label_9             matlab.ui.control.Label
+        EditField_11        matlab.ui.control.NumericEditField
         UITable             matlab.ui.control.Table
         Panel_2             matlab.ui.container.Panel
         GridLayout          matlab.ui.container.GridLayout
         Button_7            matlab.ui.control.Button
-        Panel_3             matlab.ui.container.Panel
-        radsKnobLabel       matlab.ui.control.Label
-        radsKnob            matlab.ui.control.Knob
-        radsLabel           matlab.ui.control.Label
-        EditField_11Label   matlab.ui.control.Label
-        EditField_11        matlab.ui.control.NumericEditField
+        TextArea2           matlab.ui.control.TextArea
+        Button_8            matlab.ui.control.Button
+        EditField_13        matlab.ui.control.NumericEditField
+        Button_9            matlab.ui.control.Button
+        EditField_12        matlab.ui.control.NumericEditField
         TextAreaLabel       matlab.ui.control.Label
         TextArea            matlab.ui.control.TextArea
+        UIAxes              matlab.ui.control.UIAxes
     end
 
     
     methods (Access = public)
         function results = getData(app,text)
-            nodemax=0;
             switch text
                 case "ÿÿ"
                     name="ÿÿ";
@@ -117,7 +119,7 @@ classdef circuit_exported < matlab.apps.AppBase
         end
         
         
-        function results = nodeVoltage(app,data)
+        function results = nodeVoltage(app,data,omega)
             global nodeNum;
             AA = zeros(nodeNum+1);
             bb = zeros(nodeNum+1,1);      
@@ -136,17 +138,18 @@ classdef circuit_exported < matlab.apps.AppBase
             end
             cpNum=size(data,1)-jiedi; 
             % omega
-            omega=app.EditField_11.Value;
+            
 
             for i=1:cpNum
                 cpName=string(data(i,1));
                 cpNo1=int8(str2double(data(i,2))+1);
                 cpNo2=int8(str2double(data(i,3))+1);    
-                cpValue1=str2double(data(i,4))+1;
-                cpValue2=str2double(data(i,5))+1;              
+                cpValue1=str2double(data(i,4));
+                cpValue2=str2double(data(i,5));              
 
                 switch char(cpName)           
                     case 'ÿÿÿ'
+                        %cpValue = 
                         cpValue=complex(cpValue1.*cosd(cpValue2),cpValue1.*sind(cpValue2));
                         %ÿÿÿÿ
                         AA(nodeNums+VSNum,nodeNums+VSNum)= 0;
@@ -186,14 +189,37 @@ classdef circuit_exported < matlab.apps.AppBase
             AA(1,:)=[];
             AA(:,1)=[];
             bb(1)=[];
-            %c=bb.';
-            results=AA\bb;
+            answer=AA\bb;
+            for i=1:(VSNum-1)
+                answer(end,:)=[];
+            end
+            results=answer;
         end
         
         function setNodeNum(app,data)
             global nodeNum;
             r=str2double(data(:,2:3));
             nodeNum=int8(max(max(r)));
+        end
+        
+        function results = getCol(app,collection)
+            s=size(collection,1);
+            for i=1:s
+                if collection(i,1)=="ÿÿÿ"
+                    results=i;
+                end
+            end
+        end
+        
+        function results = getRes(app,collection)
+            s=size(collection,1);
+            for i=1:s
+                if  or(and(collection(i,2)=="1",collection(i,3)=="2"),and(collection(i,2)=="2",collection(i,3)=="1"))
+                    results=i;
+                    break;
+                end  
+            end
+            
         end
     end
     
@@ -253,29 +279,69 @@ classdef circuit_exported < matlab.apps.AppBase
 
         % Button pushed function: Button_7
         function Button_7Pushed(app, event)
-            
             data=app.UITable.Data;
+            omega=app.EditField_11.Value;
             setNodeNum(app,data);
-            answer=nodeVoltage(app,data);
-            msgbox(char(answer))
+            answer=nodeVoltage(app,data,omega);
+            tmp=[];
+            for i=1:size(answer,1)
+                tmp=[tmp;"ÿÿ "+string(i)+" = "+answer(i)+" V"];
+            end
+            n1=app.EditField_12.Value;
+            n2=app.EditField_13.Value;
+            try
+                diff=answer(n1)-answer(n2);
+                tmp=[tmp;"ÿÿ "+string(n2)+" ÿÿÿ "+string(n1)+" ÿÿÿÿÿ "+string(diff)+" V"];
+            catch
+                
+            end
+            app.TextArea2.Value=tmp;
         end
 
-        % Value changed function: radsKnob
+        % Callback function
         function radsKnobValueChanged(app, event)
             value = app.radsKnob.Value;
             app.EditField_11.Value=floor(value);
         end
 
-        % Value changed function: EditField_11
+        % Callback function
         function EditField_11ValueChanged(app, event)
             value = app.EditField_11.Value;
             app.radsKnob.Value=value;
         end
 
-        % Value changing function: radsKnob
+        % Callback function
         function radsKnobValueChanging(app, event)
             changingValue = event.Value;
             app.EditField_11.Value=floor(changingValue);
+        end
+
+        % Button pushed function: Button_8
+        function Button_8Pushed(app, event)
+            data=app.UITable.Data;
+            posi=getCol(app,data);
+            resP=getRes(app,data);
+            setNodeNum(app,data);
+            i=1;
+            for omega=500:1:1500
+                tmp=data;
+                voltage=nodeVoltage(app,tmp,omega);
+                i=i+1;
+                resV=str2double(tmp(resP,4));
+                value(i)=voltage(1)/((voltage(1)-voltage(2))/resV);
+                absZ(i)=abs(value(i));
+                theata(i)=angle(value(i))/(2.*pi)*360;         
+            end
+            x=[499,500:1:1500];
+            plot(app.UIAxes,x,absZ,x,theata);
+            app.UIAxes.Title.String = 'ÿÿÿÿ';
+            app.UIAxes.XLabel.String = 'omega';
+            legend(app.UIAxes,'ÿÿÿÿ','ÿÿÿÿ')
+        end
+
+        % Button pushed function: Button_9
+        function Button_9Pushed(app, event)
+            
         end
     end
 
@@ -557,68 +623,81 @@ classdef circuit_exported < matlab.apps.AppBase
             % Create Button_5
             app.Button_5 = uibutton(app.Panel, 'push');
             app.Button_5.ButtonPushedFcn = createCallbackFcn(app, @Button_5Pushed, true);
-            app.Button_5.Position = [7 10 288 25];
+            app.Button_5.Position = [133 10 162 25];
             app.Button_5.Text = 'ÿÿÿÿ';
+
+            % Create radsLabel
+            app.radsLabel = uilabel(app.Panel);
+            app.radsLabel.Position = [93 11 33 22];
+            app.radsLabel.Text = 'rad/s';
+
+            % Create Label_9
+            app.Label_9 = uilabel(app.Panel);
+            app.Label_9.HorizontalAlignment = 'right';
+            app.Label_9.Position = [18 11 25 22];
+            app.Label_9.Text = 'ÿ =';
+
+            % Create EditField_11
+            app.EditField_11 = uieditfield(app.Panel, 'numeric');
+            app.EditField_11.Position = [54 11 29 22];
+            app.EditField_11.Value = 50;
 
             % Create UITable
             app.UITable = uitable(app.UIFigure);
             app.UITable.ColumnName = {'ÿÿ'; 'ÿÿ1'; 'ÿÿ2'; 'ÿ1'; 'ÿ2'};
             app.UITable.RowName = {};
             app.UITable.ColumnEditable = true;
-            app.UITable.Position = [9 213 425 249];
+            app.UITable.Position = [363 11 382 193];
 
             % Create Panel_2
             app.Panel_2 = uipanel(app.UIFigure);
             app.Panel_2.Title = 'ÿÿÿÿ';
-            app.Panel_2.Position = [9 11 425 193];
+            app.Panel_2.Position = [9 11 347 193];
 
             % Create GridLayout
             app.GridLayout = uigridlayout(app.Panel_2);
-            app.GridLayout.ColumnWidth = {'1x', '1x', '1x'};
+            app.GridLayout.ColumnWidth = {'1x', '1x', '2x', '2x'};
+            app.GridLayout.RowHeight = {'1x', '1x', '1x'};
 
             % Create Button_7
             app.Button_7 = uibutton(app.GridLayout, 'push');
             app.Button_7.ButtonPushedFcn = createCallbackFcn(app, @Button_7Pushed, true);
             app.Button_7.Layout.Row = 1;
-            app.Button_7.Layout.Column = 1;
+            app.Button_7.Layout.Column = [1 2];
+            app.Button_7.Text = 'ÿÿÿÿÿÿ';
 
-            % Create Panel_3
-            app.Panel_3 = uipanel(app.UIFigure);
-            app.Panel_3.Title = 'Panel';
-            app.Panel_3.Position = [442 12 303 192];
+            % Create TextArea2
+            app.TextArea2 = uitextarea(app.GridLayout);
+            app.TextArea2.Layout.Row = [1 2];
+            app.TextArea2.Layout.Column = [3 4];
 
-            % Create radsKnobLabel
-            app.radsKnobLabel = uilabel(app.Panel_3);
-            app.radsKnobLabel.HorizontalAlignment = 'center';
-            app.radsKnobLabel.Position = [36 36 52 22];
-            app.radsKnobLabel.Text = 'ÿ / rad/s';
+            % Create Button_8
+            app.Button_8 = uibutton(app.GridLayout, 'push');
+            app.Button_8.ButtonPushedFcn = createCallbackFcn(app, @Button_8Pushed, true);
+            app.Button_8.Layout.Row = 3;
+            app.Button_8.Layout.Column = 4;
+            app.Button_8.Text = 'ÿÿÿÿ';
 
-            % Create radsKnob
-            app.radsKnob = uiknob(app.Panel_3, 'continuous');
-            app.radsKnob.Limits = [0 1000];
-            app.radsKnob.MajorTicks = [0 250 500 750 1000];
-            app.radsKnob.MajorTickLabels = {'0', '250', '500', '750', '1000'};
-            app.radsKnob.ValueChangedFcn = createCallbackFcn(app, @radsKnobValueChanged, true);
-            app.radsKnob.ValueChangingFcn = createCallbackFcn(app, @radsKnobValueChanging, true);
-            app.radsKnob.Position = [32 84 60 60];
-            app.radsKnob.Value = 50;
+            % Create EditField_12
+            app.EditField_12 = uieditfield(app.GridLayout, 'numeric');
+            app.EditField_12.HorizontalAlignment = 'center';
+            app.EditField_12.Layout.Row = 3;
+            app.EditField_12.Layout.Column = 2;
+            app.EditField_12.Value = 4;
 
-            % Create radsLabel
-            app.radsLabel = uilabel(app.Panel_3);
-            app.radsLabel.Position = [261 143 33 22];
-            app.radsLabel.Text = 'rad/s';
+            % Create EditField_13
+            app.EditField_13 = uieditfield(app.GridLayout, 'numeric');
+            app.EditField_13.HorizontalAlignment = 'center';
+            app.EditField_13.Layout.Row = 3;
+            app.EditField_13.Layout.Column = 1;
+            app.EditField_13.Value = 3;
 
-            % Create EditField_11Label
-            app.EditField_11Label = uilabel(app.Panel_3);
-            app.EditField_11Label.HorizontalAlignment = 'right';
-            app.EditField_11Label.Position = [147 143 25 22];
-            app.EditField_11Label.Text = 'ÿ =';
-
-            % Create EditField_11
-            app.EditField_11 = uieditfield(app.Panel_3, 'numeric');
-            app.EditField_11.ValueChangedFcn = createCallbackFcn(app, @EditField_11ValueChanged, true);
-            app.EditField_11.Position = [183 143 62 22];
-            app.EditField_11.Value = 50;
+            % Create Button_9
+            app.Button_9 = uibutton(app.GridLayout, 'push');
+            app.Button_9.ButtonPushedFcn = createCallbackFcn(app, @Button_9Pushed, true);
+            app.Button_9.Layout.Row = 2;
+            app.Button_9.Layout.Column = [1 2];
+            app.Button_9.Text = 'ÿÿÿÿÿ';
 
             % Create TextAreaLabel
             app.TextAreaLabel = uilabel(app.UIFigure);
@@ -630,6 +709,14 @@ classdef circuit_exported < matlab.apps.AppBase
             app.TextArea = uitextarea(app.UIFigure);
             app.TextArea.Position = [301 -135 487 60];
             app.TextArea.Value = {'ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ'};
+
+            % Create UIAxes
+            app.UIAxes = uiaxes(app.UIFigure);
+            title(app.UIAxes, 'Title')
+            xlabel(app.UIAxes, 'X')
+            ylabel(app.UIAxes, 'Y')
+            app.UIAxes.TitleFontWeight = 'bold';
+            app.UIAxes.Position = [9 213 425 249];
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';
